@@ -1,11 +1,12 @@
 import { callKimiReasoner } from '../utils/api.js';
 import { readPrompt } from '../utils/files.js';
 import { appendTokenRecord } from '../utils/token-logger.js';
+import { MODELS } from '../models.js';
 import type { Claim, InvestigationResult, AdjudicationResult, ClaimVerdict } from '../types.js';
 
 /**
  * Step 3: Batch Adjudicate
- * Single Kimi K2.5 reasoner call to verify all claims against evidence.
+ * Single Kimi call to verify all claims against evidence.
  */
 export async function runAdjudicateStep(
   claims: Claim[],
@@ -15,7 +16,7 @@ export async function runAdjudicateStep(
 
   const batchPrompt = buildBatchPrompt(systemPrompt, claims, investigations);
 
-  console.log(`  [adjudicate] Sending batch of ${claims.length} claims to Kimi K2.5`);
+  console.log(`  [adjudicate] Sending batch of ${claims.length} claims to ${MODELS.adjudication}`);
   console.log(`  [adjudicate] Prompt size: ${batchPrompt.length} chars`);
 
   const MAX_RETRIES = 3;
@@ -39,7 +40,7 @@ export async function runAdjudicateStep(
   }
 
   console.log(`  [adjudicate] Tokens: ${response!.input_tokens} in / ${response!.output_tokens} out`);
-  appendTokenRecord('adjudicate', 'kimi-k2.5-reasoner', response!.input_tokens, response!.output_tokens);
+  appendTokenRecord('adjudicate', MODELS.adjudication, response!.input_tokens, response!.output_tokens);
 
   const result = parseAdjudicationResponse(response!.content);
   return result;

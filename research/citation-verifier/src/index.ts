@@ -81,7 +81,7 @@ app.listen(CONFIG.port, '127.0.0.1', () => {
 ╠════════════════════════════════════════════════════════╣
 ║  Bind:       ${'127.0.0.1'.padEnd(41)}║
 ║  Port:       ${String(CONFIG.port).padEnd(41)}║
-║  Kimi K2.5:  ${(CONFIG.kimiApiKey ? 'configured' : 'NOT CONFIGURED').padEnd(41)}║
+║  Kimi:       ${(CONFIG.kimiApiKey ? 'configured' : 'NOT CONFIGURED').padEnd(41)}║
 ║  Tavily:     ${(CONFIG.tavilyApiKey ? 'configured' : 'NOT CONFIGURED').padEnd(41)}║
 ╚════════════════════════════════════════════════════════╝
   `);

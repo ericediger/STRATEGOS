@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';
 import { callKimiChat } from '../utils/api.js';
 import { readPrompt, readIntermediate } from '../utils/files.js';
+import { MODELS } from '../models.js';
 import type { SizingParams } from '../types.js';
 
 interface SizingResult {
@@ -18,7 +19,7 @@ interface SizingResult {
 
 /**
  * Step 5: Sizing
- * Calculate word count targets using Kimi K2.5.
+ * Calculate word count targets using Kimi.
  */
 export async function runSizingStep(
   projectId: number,
@@ -38,7 +39,7 @@ export async function runSizingStep(
     sizingParams, outlineFile, specFile, specContent,
   );
 
-  console.log(`  [sizing] Sending to Kimi K2.5 (${userPrompt.length} chars)`);
+  console.log(`  [sizing] Sending to ${MODELS.chat} (${userPrompt.length} chars)`);
 
   const response = await callKimiChat(userPrompt, systemPrompt, 8000);
 

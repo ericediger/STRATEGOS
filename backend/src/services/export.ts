@@ -2,7 +2,7 @@
  * Document Export Service
  *
  * Generates professional DOCX/PPTX exports of completed artifacts.
- * Uses Claude Opus 4.6 to generate Node.js scripts that create the documents,
+ * Uses Claude (MODELS.export) to generate Node.js scripts that create the documents,
  * then executes those scripts in a sandboxed temp directory.
  */
 
@@ -17,6 +17,7 @@ import { loadPrompt } from './prompt-loader.js';
 import { getProjectConfidence } from './confidence.js';
 import type { ConfidenceData } from './confidence.js';
 import { logLLMCall, extractAnthropicUsage } from './llm-logger.js';
+import { MODELS } from '../config/models.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BACKEND_DIR = resolve(__dirname, '..', '..');
@@ -163,14 +164,14 @@ export async function exportArtifact(
     // Call Claude to generate the script (no thinking — prescriptive code generation)
     const exportCallStart = Date.now();
     const response = await getAnthropic().messages.create({
-      model: 'claude-opus-4-6',
+      model: MODELS.export,
       max_tokens: 16000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
     const exportCallDuration = Date.now() - exportCallStart;
 
-    try { logLLMCall({ project_id: projectId, phase: 'export', model: 'claude-opus-4-6', provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: exportCallDuration }); } catch { /* non-blocking */ }
+    try { logLLMCall({ project_id: projectId, phase: 'export', model: MODELS.export, provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: exportCallDuration }); } catch { /* non-blocking */ }
 
     let script = response.content
       .filter(block => block.type === 'text')
@@ -218,7 +219,7 @@ export async function exportArtifact(
       // Retry: send error back to Claude
       const retryStart = Date.now();
       const retryResponse = await getAnthropic().messages.create({
-        model: 'claude-opus-4-6',
+        model: MODELS.export,
         max_tokens: 16000,
         system: systemPrompt,
         messages: [
@@ -232,7 +233,7 @@ export async function exportArtifact(
       });
       const retryDuration = Date.now() - retryStart;
 
-      try { logLLMCall({ project_id: projectId, phase: 'export', model: 'claude-opus-4-6', provider: 'anthropic', ...extractAnthropicUsage(retryResponse), duration_ms: retryDuration }); } catch { /* non-blocking */ }
+      try { logLLMCall({ project_id: projectId, phase: 'export', model: MODELS.export, provider: 'anthropic', ...extractAnthropicUsage(retryResponse), duration_ms: retryDuration }); } catch { /* non-blocking */ }
 
       let retryScript = retryResponse.content
         .filter(block => block.type === 'text')
@@ -676,7 +677,7 @@ Return ONLY the script -- no explanation, no markdown fences.
 
     // Call Claude to generate the script (no thinking -- prescriptive code generation)
     const response = await getAnthropic().messages.create({
-      model: 'claude-opus-4-6',
+      model: MODELS.export,
       max_tokens: 32000,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
@@ -686,7 +687,7 @@ Return ONLY the script -- no explanation, no markdown fences.
     const apiDuration = (apiDurationMs / 1000).toFixed(1);
     console.log(`[packet] Claude API call took ${apiDuration}s`);
 
-    try { logLLMCall({ project_id: projectId, phase: 'export', model: 'claude-opus-4-6', provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: apiDurationMs }); } catch { /* non-blocking */ }
+    try { logLLMCall({ project_id: projectId, phase: 'export', model: MODELS.export, provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: apiDurationMs }); } catch { /* non-blocking */ }
 
     let script = response.content
       .filter(block => block.type === 'text')
@@ -738,7 +739,7 @@ Return ONLY the script -- no explanation, no markdown fences.
       // Retry: send error back to Claude
       const packetRetryStart = Date.now();
       const retryResponse = await getAnthropic().messages.create({
-        model: 'claude-opus-4-6',
+        model: MODELS.export,
         max_tokens: 32000,
         system: systemPrompt,
         messages: [
@@ -752,7 +753,7 @@ Return ONLY the script -- no explanation, no markdown fences.
       });
       const packetRetryDuration = Date.now() - packetRetryStart;
 
-      try { logLLMCall({ project_id: projectId, phase: 'export', model: 'claude-opus-4-6', provider: 'anthropic', ...extractAnthropicUsage(retryResponse), duration_ms: packetRetryDuration }); } catch { /* non-blocking */ }
+      try { logLLMCall({ project_id: projectId, phase: 'export', model: MODELS.export, provider: 'anthropic', ...extractAnthropicUsage(retryResponse), duration_ms: packetRetryDuration }); } catch { /* non-blocking */ }
 
       let retryScript = retryResponse.content
         .filter(block => block.type === 'text')

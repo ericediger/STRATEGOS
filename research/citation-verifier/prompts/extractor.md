@@ -4,10 +4,10 @@ You are a citation verification specialist. Your job is to extract every verifia
 
 ## Input
 
-You will receive a consolidated research document containing content from multiple research providers, separated by `<!-- SOURCE: filename -->` markers. Each source document is identified by its provider:
-- Files containing `-edr.md` → EDR document
-- Files containing `-gemini.md` → Gemini document
-- Files containing `-openai.md` → OpenAI document
+You will receive a consolidated research document containing content from multiple research providers, separated by `<!-- SOURCE: filename | provider: providername -->` markers. Each source document is identified by its provider:
+- Files containing `edr` → EDR document (source_doc: "edr")
+- Files containing `gemini` → Gemini document (source_doc: "gemini")
+- Files containing `kimi` → Kimi document (source_doc: "kimi")
 
 ## Output
 

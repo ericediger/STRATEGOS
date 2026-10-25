@@ -5,9 +5,20 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { mkdir, writeFile } from 'fs/promises';
 import { existsSync } from 'fs';
+import { Agent, setGlobalDispatcher } from 'undici';
 
 // Load environment variables
 import 'dotenv/config';
+import { MODELS } from './models.js';
+
+// Node's native fetch uses undici with a 300s default body timeout.
+// Kimi non-streaming research calls can take 5-10 minutes.
+const LLM_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes
+setGlobalDispatcher(new Agent({
+  headersTimeout: LLM_TIMEOUT_MS,
+  bodyTimeout: LLM_TIMEOUT_MS,
+  connectTimeout: 30_000,
+}));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -510,7 +521,7 @@ async function callGemini(systemPrompt, topicContext, geminiQuery = null) {
       'x-goog-api-key': apiKey
     },
     body: JSON.stringify({
-      agent: 'deep-research-pro-preview-12-2025',
+      agent: MODELS.geminiDeepResearch,
       background: true,
       store: true,
       input: fullPrompt
@@ -623,7 +634,7 @@ async function pollGemini(externalId) {
 }
 
 /**
- * Step 2: Expand Gemini Deep Research output via Gemini 3 Pro.
+ * Step 2: Expand Gemini Deep Research output (MODELS.geminiExpansion).
  * Chains to the completed Deep Research interaction using previous_interaction_id,
  * which carries the full research context (710K+ tokens) server-side.
  *
@@ -636,7 +647,7 @@ async function expandGemini(interactionId, expansionPrompt) {
   const EXPANSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   try {
-    console.log(`[gemini] Step 2: Starting expansion via Gemini 3 Pro (previous_interaction_id: ${interactionId})`);
+    console.log(`[gemini] Step 2: Starting expansion via ${MODELS.geminiExpansion} (previous_interaction_id: ${interactionId})`);
 
     const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
       method: 'POST',
@@ -645,7 +656,7 @@ async function expandGemini(interactionId, expansionPrompt) {
         'x-goog-api-key': apiKey
       },
       body: JSON.stringify({
-        model: 'gemini-3-pro-preview',
+        model: MODELS.geminiExpansion,
         previous_interaction_id: interactionId,
         store: true,
         input: expansionPrompt,
@@ -744,7 +755,7 @@ async function callEDR(systemPrompt, topicContext) {
     body: JSON.stringify({
       query: fullPrompt,
       model_provider: 'deepseek',
-      model_name: 'deepseek-reasoner',
+      model_name: 'deepseek-reasoner', // informational only: EDR picks its own models (edr-node/src/models.ts)
       search_provider: 'tavily',
       max_iterations: 10,
       include_sources: true
@@ -798,8 +809,12 @@ async function pollEDR(externalId) {
   return { completed: false, status: data.status };
 }
 
-// Kimi K2 Thinking — deep research with built-in web search
+// Kimi — deep research with built-in web search (MODELS.kimiResearch)
+// Uses $web_search for grounded, citation-rich output.
+// Non-streaming multi-turn: model requests search → client echoes args back →
+// server executes search → model generates content with real citations.
 const KIMI_API_URL = process.env.KIMI_URL || 'https://api.moonshot.ai/v1';
+const MAX_SEARCH_ROUNDS = 10;
 
 async function callKimi(systemPrompt, topicContext, externalAbortController = null) {
   const apiKey = process.env.KIMI_API_KEY;
@@ -813,93 +828,124 @@ async function callKimi(systemPrompt, topicContext, externalAbortController = nu
     abortController.abort();
   }, HARD_TIMEOUT_MS);
 
+  const tools = [{ type: 'builtin_function', function: { name: '$web_search' } }];
+  let messages = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: topicContext }
+  ];
+  let totalUsage = { prompt_tokens: 0, completion_tokens: 0 };
+  let totalSearches = 0;
+
   try {
-    const response = await fetch(`${KIMI_API_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'kimi-k2-thinking',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: topicContext }
-        ],
-        tools: [
-          { type: 'builtin_function', function: { name: '$web_search' } }
-        ],
-        tool_choice: 'auto',
-        temperature: 1.0,
-        max_tokens: 16384,
-        stream: true
-      }),
-      signal: abortController.signal
-    });
+    for (let round = 0; round <= MAX_SEARCH_ROUNDS; round++) {
+      console.log(`  [kimi] Round ${round + 1}${round > 0 ? ` (after ${totalSearches} web searches)` : ''}...`);
 
-    if (!response.ok) {
-      clearTimeout(timeoutId);
-      const errorText = await response.text().catch(() => '');
-      if (response.status === 429) {
-        throw { rateLimited: true, retryAfter: 60 };
-      }
-      throw new Error(`Kimi error ${response.status}: ${errorText.substring(0, 300)}`);
-    }
+      // Per-round timeout: 15 min covers fetch + body read + JSON parse
+      const ROUND_TIMEOUT_MS = 15 * 60 * 1000;
+      const roundController = new AbortController();
+      const roundTimer = setTimeout(() => {
+        console.error(`  [kimi] Round ${round + 1} timeout (15 min), aborting`);
+        roundController.abort();
+      }, ROUND_TIMEOUT_MS);
 
-    // Read SSE stream
-    let content = '';
-    let usage = {};
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let lastLog = Date.now();
+      let data;
+      try {
+        const response = await fetch(`${KIMI_API_URL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: MODELS.kimiResearch,
+            messages,
+            tools,
+            tool_choice: 'auto',
+            temperature: 1.0,
+            max_tokens: 32768
+          }),
+          signal: AbortSignal.any([
+            abortController.signal,
+            roundController.signal
+          ])
+        });
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const payload = line.slice(6).trim();
-        if (payload === '[DONE]') continue;
-
-        try {
-          const parsed = JSON.parse(payload);
-          const delta = parsed.choices?.[0]?.delta?.content || '';
-          if (delta) content += delta;
-          if (parsed.usage) usage = parsed.usage;
-        } catch (e) {
-          // skip unparseable SSE chunks
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          if (response.status === 429) {
+            throw { rateLimited: true, retryAfter: 60 };
+          }
+          throw new Error(`Kimi error ${response.status}: ${errorText.substring(0, 300)}`);
         }
+
+        data = await response.json();
+      } finally {
+        clearTimeout(roundTimer);
+      }
+      const choice = data.choices?.[0];
+      const msg = choice?.message;
+      const content = msg?.content || '';
+      const finishReason = choice?.finish_reason || 'unknown';
+
+      if (data.usage) {
+        totalUsage.prompt_tokens += data.usage.prompt_tokens || 0;
+        totalUsage.completion_tokens += data.usage.completion_tokens || 0;
       }
 
-      if (Date.now() - lastLog > 60_000) {
-        const words = content.split(/\s+/).filter(Boolean).length;
-        console.log(`  [kimi] ${words} words generated so far...`);
-        lastLog = Date.now();
+      // If model finished with content (not tool_calls), we're done
+      if (finishReason !== 'tool_calls') {
+        clearTimeout(timeoutId);
+
+        if (!content.trim()) {
+          throw new Error('Kimi returned empty response');
+        }
+
+        const wordCount = content.split(/\s+/).filter(Boolean).length;
+        console.log(`  [kimi] Complete: ${wordCount} words, ${totalSearches} web searches (finish_reason=${finishReason})`);
+        if (msg?.reasoning_content) {
+          const reasoningWords = msg.reasoning_content.split(/\s+/).filter(Boolean).length;
+          console.log(`  [kimi] Reasoning: ${reasoningWords} words (not included in output)`);
+        }
+        if (finishReason === 'length') {
+          console.warn(`  [kimi] WARNING: Output truncated (finish_reason=length).`);
+        }
+
+        return {
+          completed: true,
+          result: content,
+          tokens: {
+            input_tokens: totalUsage.prompt_tokens,
+            output_tokens: totalUsage.completion_tokens
+          }
+        };
+      }
+
+      // Model requested web search — echo tool call args back for server-side execution
+      const toolCalls = msg?.tool_calls || [];
+      totalSearches += toolCalls.length;
+      console.log(`  [kimi] ${toolCalls.length} web search(es) requested`);
+
+      messages.push({
+        role: 'assistant',
+        tool_calls: toolCalls.map(tc => ({
+          id: tc.id, type: tc.type,
+          function: { name: tc.function.name, arguments: '' }
+        }))
+      });
+
+      for (const tc of toolCalls) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: tc.function.arguments
+        });
       }
     }
 
+    // Exhausted search rounds
     clearTimeout(timeoutId);
+    throw new Error(`Kimi exhausted ${MAX_SEARCH_ROUNDS} web search rounds without generating content`);
 
-    if (!content.trim()) {
-      throw new Error('Kimi returned empty response');
-    }
-
-    console.log(`  [kimi] Complete: ${content.split(/\s+/).filter(Boolean).length} words`);
-
-    return {
-      completed: true,
-      result: content,
-      tokens: {
-        input_tokens: usage.prompt_tokens || 0,
-        output_tokens: usage.completion_tokens || 0
-      }
-    };
   } catch (error) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {

@@ -6,7 +6,7 @@
  * Phase 0: Collaboration (chat + brief synthesis + approval)
  * Phase 1: Deep Research (3-provider concurrent)
  * Phase 2: Source Verification (7-step pipeline)
- * Phase 3: Strategic Analysis (GPT-5.2 synthesis)
+ * Phase 3: Strategic Analysis
  * Phase 4: Artifact Generation (SWOT, PESTLE, Five Forces, etc.)
  */
 

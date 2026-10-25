@@ -6,6 +6,7 @@ import { CONFIG } from '../config.js';
 import { callKimiChat } from '../utils/api.js';
 import { readPrompt } from '../utils/files.js';
 import { appendTokenRecord } from '../utils/token-logger.js';
+import { MODELS } from '../models.js';
 
 /**
  * Step 3.5: Cross-Provider Consensus
@@ -51,7 +52,7 @@ export async function runConsensusStep(
     }
   }
 
-  appendTokenRecord('consensus', 'kimi-k2.5', response!.input_tokens, response!.output_tokens);
+  appendTokenRecord('consensus', MODELS.chat, response!.input_tokens, response!.output_tokens);
 
   let rawGroups: Array<{ group_id: string; claim_ids: string[]; common_topic: string; reasoning: string }>;
   try {

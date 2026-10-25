@@ -2,9 +2,9 @@
  * Analysis + Artifact Generation Service (Phases 3 & 4)
  *
  * Phase 3: Strategic Analysis — synthesizes all research inputs into a
- *          Unified Strategic Intelligence Assessment via Claude Opus 4.6.
+ *          Unified Strategic Intelligence Assessment (MODELS.strategicAnalysis).
  * Phase 4: Artifact Generation — generates selected deliverables (SWOT,
- *          PESTLE, Five Forces, etc.) concurrently via Claude Opus 4.6.
+ *          PESTLE, Five Forces, etc.) concurrently (MODELS.artifacts).
  *
  * Uses fire-and-forget with in-memory task tracking (same pattern as verification).
  */
@@ -20,6 +20,7 @@ import { parseBrief } from './research.js';
 import { createTask as createPersistentTask, completeTask as completePersistentTask, failTask as failPersistentTask, getActiveTask as getActivePersistentTask } from './task-persistence.js';
 import { logEvent, EVENT_TYPES } from './event-logger.js';
 import { logLLMCall, extractAnthropicUsage } from './llm-logger.js';
+import { MODELS } from '../config/models.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECTS_ROOT = process.env.PROJECTS_ROOT || join(__dirname, '../../projects');
@@ -219,11 +220,11 @@ async function runAnalysis(projectId: string): Promise<void> {
     .replace(/\{\{DATE\}\}/g, today)
     .replace(/\{\{RESEARCH_TYPE\}\}/g, briefData.researchType);
 
-  console.log(`[analysis] Calling GPT-5.2 (reasoning: high, streaming) for project ${projectId}...`);
+  console.log(`[analysis] Calling ${MODELS.strategicAnalysis} (reasoning: high, streaming) for project ${projectId}...`);
 
   const analysisStart = Date.now();
   const stream = await getOpenAI().chat.completions.create({
-    model: 'gpt-5.2',
+    model: MODELS.strategicAnalysis,
     reasoning_effort: 'high',
     stream: true,
     stream_options: { include_usage: true },
@@ -243,7 +244,7 @@ async function runAnalysis(projectId: string): Promise<void> {
   const assessment = chunks.join('');
   const analysisDuration = Date.now() - analysisStart;
 
-  try { logLLMCall({ project_id: projectId, phase: 'analysis', model: 'gpt-5.2', provider: 'openai', input_tokens: streamUsage?.prompt_tokens ?? null, output_tokens: streamUsage?.completion_tokens ?? null, duration_ms: analysisDuration }); } catch { /* non-blocking */ }
+  try { logLLMCall({ project_id: projectId, phase: 'analysis', model: MODELS.strategicAnalysis, provider: 'openai', input_tokens: streamUsage?.prompt_tokens ?? null, output_tokens: streamUsage?.completion_tokens ?? null, duration_ms: analysisDuration }); } catch { /* non-blocking */ }
 
   // Save to filesystem
   const analysisDir = join(projectRoot, 'analysis');
@@ -451,7 +452,7 @@ export async function generateSingleArtifact(projectId: string, type: string, si
     try { logEvent(EVENT_TYPES.artifact_generation_started, projectId, { artifactType: type }); } catch { /* non-blocking */ }
 
     const response = await getAnthropic().messages.create({
-      model: 'claude-opus-4-6',
+      model: MODELS.artifacts,
       max_tokens: 16000,
       thinking: {
         type: 'adaptive',
@@ -461,7 +462,7 @@ export async function generateSingleArtifact(projectId: string, type: string, si
     }, { signal: signal as AbortSignal | undefined });
     const artifactCallDuration = Date.now() - artifactStartTime;
 
-    try { logLLMCall({ project_id: projectId, phase: 'artifacts', model: 'claude-opus-4-6', provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: artifactCallDuration }); } catch { /* non-blocking */ }
+    try { logLLMCall({ project_id: projectId, phase: 'artifacts', model: MODELS.artifacts, provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: artifactCallDuration }); } catch { /* non-blocking */ }
 
     const content = response.content
       .filter(block => block.type === 'text')

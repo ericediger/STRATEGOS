@@ -18,6 +18,7 @@ import { checkResearchEngineHealth as checkHealth } from './health.js';
 import { createTask, completeTask, failTask, updateTaskProgress, getActiveTask } from './task-persistence.js';
 import { logEvent, EVENT_TYPES, flushDedupSummary } from './event-logger.js';
 import { logLLMCall, extractAnthropicUsage } from './llm-logger.js';
+import { MODELS } from '../config/models.js';
 
 // Lazy-init Anthropic client — dotenv hasn't loaded at import time
 let _anthropic: Anthropic | null = null;
@@ -771,14 +772,16 @@ export async function filterKimiOutput(filePath: string, projectId: string): Pro
     const anthropic = getAnthropicClient();
 
     const filterStart = Date.now();
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 16000,
+    // Use streaming to avoid Anthropic SDK 10-minute timeout on large inputs
+    const stream = anthropic.messages.stream({
+      model: MODELS.kimiFilter,
+      max_tokens: 24000,
       messages: [{ role: 'user', content: `${filterPrompt}\n\n---\n\n${content}` }],
     });
+    const response = await stream.finalMessage();
     const filterDuration = Date.now() - filterStart;
 
-    try { logLLMCall({ project_id: projectId, phase: 'research', model: 'claude-haiku-4-5-20251001', provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: filterDuration }); } catch { /* non-blocking */ }
+    try { logLLMCall({ project_id: projectId, phase: 'research', model: MODELS.kimiFilter, provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: filterDuration }); } catch { /* non-blocking */ }
 
     const filtered = response.content
       .filter((b: { type: string }) => b.type === 'text')

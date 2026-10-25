@@ -1,5 +1,11 @@
 # STRATEGOS
 
+[![Watch the one-minute explainer video](media/explainer-poster.jpg)](https://ericediger.github.io/STRATEGOS/media/strategos-explainer.mp4)
+
+**[▶ Watch the 1-minute explainer](https://ericediger.github.io/STRATEGOS/media/strategos-explainer.mp4)**
+
+The explainer is recorded from the real frontend running on fictional sample companies, with scripted replies; no real research appears in it. Its source is in [`explainer/`](explainer/).
+
 Strategic competitive intelligence research platform. An AI-guided workflow that takes a business question from scoping through multi-provider deep research, citation verification, strategic analysis, and finished deliverables exported to Word and PowerPoint.
 
 ## What It Does
@@ -34,6 +40,8 @@ Five services, all running locally. All project data (briefs, research, analysis
 | `research/edr-node/` | EDR deep-research provider |
 | `research/citation-verifier/` | Citation verification pipeline |
 | `prompts/` | Prompt templates (markdown with template variables) |
+| `explainer/` | Explainer video source: storyboard, recording script, animated scenes, demo stage |
+| `media/` | Explainer video and its poster |
 
 ## Tech Stack
 

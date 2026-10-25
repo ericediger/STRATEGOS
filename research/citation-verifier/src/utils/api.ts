@@ -1,5 +1,6 @@
 import { Agent, setGlobalDispatcher } from 'undici';
 import { CONFIG } from '../config.js';
+import { MODELS } from '../models.js';
 import { DiskCache } from './cache.js';
 import type { LLMResponse, TavilySource } from '../types.js';
 
@@ -13,7 +14,9 @@ setGlobalDispatcher(new Agent({
   connectTimeout: 30_000,
 }));
 
-/** Call Kimi K2.5 chat (verification: extraction, consensus, sizing). */
+/** Call Kimi chat (MODELS.chat) with thinking disabled (verification: extraction, consensus, sizing).
+ *  Thinking disabled ensures all output goes to content field (not reasoning_content),
+ *  which is required for structured JSON responses. Temp must be 0.6 when thinking is off. */
 export async function callKimiChat(
   userPrompt: string,
   systemPrompt: string,
@@ -27,13 +30,14 @@ export async function callKimiChat(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'kimi-k2.5',
+      model: MODELS.chat,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
       max_tokens: maxTokens,
-      temperature: 1.0,
+      temperature: 0.6,
+      thinking: { type: 'disabled' },
     }),
     signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
@@ -45,11 +49,8 @@ export async function callKimiChat(
 
   const data = await response.json() as any;
   const msg = data.choices[0].message;
-  const content = msg.content || msg.reasoning_content || '';
-  if (!msg.content && msg.reasoning_content) {
-    console.log(`  [kimi-chat] Warning: content empty, using reasoning_content (${msg.reasoning_content.length} chars)`);
-  }
-  console.log(`  [kimi-chat] finish_reason=${data.choices[0].finish_reason}, content=${(msg.content || '').length} chars, reasoning=${(msg.reasoning_content || '').length} chars`);
+  const content = msg.content || '';
+  console.log(`  [kimi-chat] finish_reason=${data.choices[0].finish_reason}, content=${content.length} chars`);
   return {
     content,
     input_tokens: data.usage?.prompt_tokens ?? 0,
@@ -57,7 +58,9 @@ export async function callKimiChat(
   };
 }
 
-/** Call Kimi K2.5 in reasoning mode (verification: adjudication). */
+/** Call Kimi (MODELS.adjudication) for adjudication (thinking disabled for structured JSON output).
+ *  Previously used thinking mode, but K2.6 thinking consumes tokens on reasoning_content
+ *  before generating the verdict JSON, causing truncation on large claim batches. */
 export async function callKimiReasoner(
   prompt: string,
   maxTokens = 8192,
@@ -70,10 +73,11 @@ export async function callKimiReasoner(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'kimi-k2.5',
+      model: MODELS.adjudication,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: maxTokens,
-      temperature: 1.0,
+      temperature: 0.6,
+      thinking: { type: 'disabled' },
     }),
     signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
   });
@@ -86,7 +90,6 @@ export async function callKimiReasoner(
   const data = await response.json() as any;
   return {
     content: data.choices[0].message.content,
-    reasoning: data.choices[0].message.reasoning_content || '',
     input_tokens: data.usage?.prompt_tokens ?? 0,
     output_tokens: data.usage?.completion_tokens ?? 0,
   };

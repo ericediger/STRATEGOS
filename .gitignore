@@ -34,9 +34,11 @@ test-fixtures/
 .claude/
 .mcp-data/
 
-# Local research output and demo media (large / project-specific)
+# Local research output (project-specific)
 STRATEGOS - SURVEY ANALYSIS/
-media/
+
+# Superseded explainer renders (local only)
+media/v*/
 
 # Session logs (may contain project-specific content)
 docs/session-logs/

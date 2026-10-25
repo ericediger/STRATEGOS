@@ -13,6 +13,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { prepare } from '../db/index.js';
 import { loadPrompt } from './prompt-loader.js';
 import { logLLMCall, extractAnthropicUsage } from './llm-logger.js';
+import { MODELS } from '../config/models.js';
 
 // Lazy init — dotenv hasn't loaded yet at import time
 let _anthropic: Anthropic | null = null;
@@ -72,14 +73,14 @@ export async function sendChat(
 
   const callStart = Date.now();
   const response = await getAnthropic().messages.create({
-    model: 'claude-opus-4-6',
+    model: MODELS.collaboration,
     max_tokens: 2048,
     system: systemPrompt,
     messages,
   });
   const callDuration = Date.now() - callStart;
 
-  try { logLLMCall({ project_id: projectId, phase: 'collaboration', model: 'claude-opus-4-6', provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: callDuration }); } catch { /* non-blocking */ }
+  try { logLLMCall({ project_id: projectId, phase: 'collaboration', model: MODELS.collaboration, provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: callDuration }); } catch { /* non-blocking */ }
 
   const reply = response.content
     .filter(block => block.type === 'text')
@@ -119,7 +120,7 @@ export async function sendChat(
 
 /**
  * Synthesize the conversation into a Research Brief.
- * Uses Claude Opus 4.5 with extended thinking.
+ * Uses MODELS.briefSynthesis with adaptive thinking.
  */
 export async function synthesizeBrief(
   projectId: string,
@@ -141,7 +142,7 @@ export async function synthesizeBrief(
 
   const synthStart = Date.now();
   const response = await getAnthropic().messages.create({
-    model: 'claude-opus-4-6',
+    model: MODELS.briefSynthesis,
     max_tokens: 16000,
     thinking: {
       type: 'adaptive',
@@ -151,7 +152,7 @@ export async function synthesizeBrief(
   });
   const synthDuration = Date.now() - synthStart;
 
-  try { logLLMCall({ project_id: projectId, phase: 'synthesis', model: 'claude-opus-4-6', provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: synthDuration }); } catch { /* non-blocking */ }
+  try { logLLMCall({ project_id: projectId, phase: 'synthesis', model: MODELS.briefSynthesis, provider: 'anthropic', ...extractAnthropicUsage(response), duration_ms: synthDuration }); } catch { /* non-blocking */ }
 
   const brief = response.content
     .filter(block => block.type === 'text')

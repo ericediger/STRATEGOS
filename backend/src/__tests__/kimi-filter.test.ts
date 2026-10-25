@@ -24,11 +24,12 @@ vi.mock('../db/index.js', () => {
   };
 });
 
-// Mock the Anthropic SDK
-const mockCreate = vi.fn();
+// Mock the Anthropic SDK — filterKimiOutput calls messages.stream() and awaits finalMessage()
+const mockStream = vi.fn();
+const mockFinalMessage = vi.fn();
 vi.mock('@anthropic-ai/sdk', () => {
   class MockAnthropic {
-    messages = { create: mockCreate };
+    messages = { stream: mockStream };
   }
   return { default: MockAnthropic };
 });
@@ -45,6 +46,7 @@ vi.mock('fs/promises', () => ({
 import { filterKimiOutput } from '../services/research.js';
 import { logEvent, EVENT_TYPES } from '../services/event-logger.js';
 import { loadPrompt } from '../services/prompt-loader.js';
+import { MODELS } from '../config/models.js';
 
 describe('KIMI Post-Generation Hallucination Filter', () => {
   beforeEach(() => {
@@ -63,6 +65,7 @@ describe('KIMI Post-Generation Hallucination Filter', () => {
     `);
     vi.clearAllMocks();
     mockWriteFile.mockResolvedValue(undefined);
+    mockStream.mockReturnValue({ finalMessage: mockFinalMessage });
   });
 
   afterEach(() => {
@@ -78,17 +81,17 @@ describe('KIMI Post-Generation Hallucination Filter', () => {
     const filteredContent = 'This is the filtered research output.';
 
     mockReadFile.mockResolvedValue(originalContent);
-    mockCreate.mockResolvedValue({
+    mockFinalMessage.mockResolvedValue({
       content: [{ type: 'text', text: filteredContent }],
     });
 
     await filterKimiOutput('/tmp/test/research/kimi.md', 'proj-1');
 
     // Verify Anthropic was called with Haiku model
-    expect(mockCreate).toHaveBeenCalledOnce();
-    const callArgs = mockCreate.mock.calls[0][0];
-    expect(callArgs.model).toBe('claude-haiku-4-5-20251001');
-    expect(callArgs.max_tokens).toBe(16000);
+    expect(mockStream).toHaveBeenCalledOnce();
+    const callArgs = mockStream.mock.calls[0][0];
+    expect(callArgs.model).toBe(MODELS.kimiFilter);
+    expect(callArgs.max_tokens).toBe(24000);
 
     // Verify file was overwritten with filtered content
     expect(mockWriteFile).toHaveBeenCalledWith(
@@ -116,7 +119,7 @@ describe('KIMI Post-Generation Hallucination Filter', () => {
 
   it('should fail open on Anthropic API error — no throw, unfiltered output preserved', async () => {
     mockReadFile.mockResolvedValue('Some research content here.');
-    mockCreate.mockRejectedValue(new Error('API rate limit exceeded'));
+    mockFinalMessage.mockRejectedValue(new Error('API rate limit exceeded'));
 
     // Should NOT throw
     await expect(filterKimiOutput('/tmp/test/research/kimi.md', 'proj-2')).resolves.toBeUndefined();
@@ -134,7 +137,7 @@ describe('KIMI Post-Generation Hallucination Filter', () => {
 
     await expect(filterKimiOutput('/tmp/nonexistent/kimi.md', 'proj-3')).resolves.toBeUndefined();
 
-    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockStream).not.toHaveBeenCalled();
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
@@ -177,7 +180,7 @@ describe('KIMI Post-Generation Hallucination Filter', () => {
 
   it('should concatenate multiple text blocks from Anthropic response', async () => {
     mockReadFile.mockResolvedValue('Original content with multiple sections of research.');
-    mockCreate.mockResolvedValue({
+    mockFinalMessage.mockResolvedValue({
       content: [
         { type: 'text', text: 'Part one of filtered output.' },
         { type: 'text', text: ' Part two of filtered output.' },

@@ -20,6 +20,7 @@ import { config } from 'dotenv';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
+import { MODELS } from './models.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -202,7 +203,7 @@ async function callDeepSeek(
   maxTokens = SYNTHESIS_MAX_TOKENS,
   useReasoner = true
 ): Promise<DeepSeekResponse> {
-  const model = useReasoner ? 'deepseek-reasoner' : 'deepseek-chat';
+  const model = useReasoner ? MODELS.synthesis : MODELS.planning;
 
   const response = await fetch(`${DEEPSEEK_BASE_URL}/chat/completions`, {
     method: 'POST',

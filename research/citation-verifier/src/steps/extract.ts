@@ -1,18 +1,19 @@
 import { callKimiChat } from '../utils/api.js';
 import { readPrompt } from '../utils/files.js';
 import { appendTokenRecord } from '../utils/token-logger.js';
+import { MODELS } from '../models.js';
 import type { Claim } from '../types.js';
 
 /**
  * Step 1: Extract Claims
- * Use Kimi K2.5 to extract verifiable claims from consolidated document.
+ * Use Kimi to extract verifiable claims from consolidated document.
  */
 export async function runExtractStep(consolidatedText: string): Promise<Claim[]> {
   const systemPrompt = await readPrompt('extractor.md');
 
   const wordCount = consolidatedText.split(/\s+/).length;
   const sizeKB = (Buffer.byteLength(consolidatedText, 'utf-8') / 1024).toFixed(1);
-  console.log(`  [extract] Sending to Kimi K2.5 — ${consolidatedText.length} chars, ${wordCount} words, ${sizeKB} KB`);
+  console.log(`  [extract] Sending to ${MODELS.chat} — ${consolidatedText.length} chars, ${wordCount} words, ${sizeKB} KB`);
 
   const MAX_RETRIES = 3;
   const BACKOFF_MS = [10_000, 30_000, 60_000]; // 10s, 30s, 60s
@@ -35,7 +36,7 @@ export async function runExtractStep(consolidatedText: string): Promise<Claim[]>
   }
 
   console.log(`  [extract] Tokens: ${response!.input_tokens} in / ${response!.output_tokens} out`);
-  appendTokenRecord('extract', 'kimi-k2.5', response!.input_tokens, response!.output_tokens);
+  appendTokenRecord('extract', MODELS.chat, response!.input_tokens, response!.output_tokens);
 
   const claims = parseClaimsResponse(response!.content);
   console.log(`  [extract] Extracted ${claims.length} claims`);
