@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base styles */
+@layer base {
+  html {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Crimson Pro', Georgia, serif;
+  }
+}
+
+/* Custom scrollbar for dark theme */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #2A3352 transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #2A3352;
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: #4C7DF0; /* brand-blue */
+  }
+}
+
+/* Toast animation */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* Status indicator animations */
+@layer components {
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+
+  .status-dot-running {
+    @apply bg-status-running-fg animate-pulse-slow;
+  }
+
+  .status-dot-attention {
+    @apply bg-status-attention-fg;
+  }
+
+  .status-dot-complete {
+    @apply bg-status-complete-fg;
+  }
+
+  .status-dot-pending {
+    @apply bg-text-subtle;
+  }
+
+  .status-dot-paused {
+    @apply bg-status-paused-fg;
+  }
+}

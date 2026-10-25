@@ -1,0 +1,55 @@
+# Dependencies & build
+node_modules/
+dist/
+
+# Secrets
+.env
+*.env.local
+
+# Runtime logs
+logs/
+token-log.jsonl
+
+# Database (PII: project names, conversations, briefs)
+*.db
+*.db-wal
+*.db-shm
+*.db.backup-*
+data/
+
+# Project data (PII: research content, briefs, analysis)
+projects/
+dossiers/
+research/outputs/
+research/citation-verifier/cache/
+research/citation-verifier/intermediate/
+
+# Testing / scratch
+NEXT/
+TESTING/
+test-fixtures/
+
+# Agent temp files and local tool config
+.agent-prompts/
+.claude/
+.mcp-data/
+
+# Local research output and demo media (large / project-specific)
+STRATEGOS - SURVEY ANALYSIS/
+media/
+
+# Session logs (may contain project-specific content)
+docs/session-logs/
+
+# Binary artifacts (local only)
+*.zip
+*.pptx
+*.docx
+
+# Local reference assets (root only — a bare "Templates/" also matches
+# backend/src/templates/ on case-insensitive filesystems)
+/Misc/
+/Templates/
+
+# OS
+.DS_Store
