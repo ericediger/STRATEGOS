@@ -52,7 +52,7 @@ app.post('/api/verify/unit', (req, res) => {
     res.json({ task_id: taskId, status: 'queued' });
   } catch (err) {
     if (err instanceof z.ZodError) {
-      res.status(400).json({ error: 'Validation error', details: err.errors });
+      res.status(400).json({ error: 'Validation error', details: err.issues });
     } else {
       res.status(500).json({ error: String(err) });
     }
